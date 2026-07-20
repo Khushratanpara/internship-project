@@ -1,0 +1,182 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import warnings
+warnings.filterwarnings("ignore") 
+
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+
+print("Taking first 5 data\n")
+
+url = "https://raw.githubusercontent.com/venky14/Machine-Learning-with-Iris-Dataset/master/Iris.csv"
+
+df = pd.read_csv(url)
+
+
+print(df.head())
+print(df.shape)
+
+
+df.to_csv("Iris.csv", index=False)
+
+print("\nChecking for missing values:")
+print(df.isnull().sum())
+print("\nBasic statistics of the numeric columns:")
+print(df.describe().round(2))
+print("\nNumber of flowers in each species:")
+print(df["Species"].value_counts())
+
+feature = ["SepalLengthCm", "SepalWidthCm", "PetalLengthCm", "PetalWidthCm"]
+
+pairplot = sns.pairplot(df.drop("Id", axis=1), hue="Species")
+pairplot.fig.suptitle("Iris Pair Plot", y=1.02)
+
+
+plt.savefig("iris_pairplot.png", bbox_inches="tight", dpi=120)
+plt.close()
+
+plt.figure(figsize=(8, 6))
+sns.heatmap(df[feature].corr(), annot=True, fmt=".2f", cmap="coolwarm", square=True)
+plt.title("Feature Correlation Heatmap")
+plt.tight_layout()
+
+
+plt.savefig("iris_heatmap.png", dpi=120)
+plt.close()
+
+fig, axes = plt.subplots(2, 2, figsize=(10, 8))
+for a, col in zip(axes.flat, feature):
+    df.boxplot(column=col, by="Species", ax=a)
+    a.set_title(col)
+    a.set_xlabel("")
+fig.suptitle("Feature Distribution by Species", fontsize=13)
+
+
+
+plt.tight_layout()
+plt.savefig("iris_boxplots.png", dpi=120)
+plt.close()
+
+
+X = df[feature]      
+y = df["Species"]         
+le = LabelEncoder()
+y_encoded = le.fit_transform(y)
+
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y_encoded, test_size=0.20, random_state=42, stratify=y_encoded
+)
+print(f"\nTraining samples: {len(X_train)}")
+print(f"Testing samples : {len(X_test)}")
+values = range(1, 16)
+train = []
+test = []
+
+for k in values:
+    knn = KNeighborsClassifier(n_neighbors=k)
+    knn.fit(X_train, y_train)
+    train.append(accuracy_score(y_train, knn.predict(X_train)))
+    test.append(accuracy_score(y_test, knn.predict(X_test)))
+
+plt.figure(figsize=(9, 5))
+plt.plot(values, train, marker="o", label="Train Accuracy")
+plt.plot(values, test, marker="s", label="Test Accuracy")
+plt.xlabel("k (Number of Neighbours)")
+plt.ylabel("Accuracy")
+plt.title("KNN - Choosing the Best k")
+plt.xticks(values)
+plt.legend()
+plt.grid(alpha=0.4)
+plt.tight_layout()
+plt.savefig("iris_k_selection.png", dpi=120)
+plt.close()
+best = values[np.argmax(test)]
+print(f"\nBest k value = {best}  (Test accuracy = {max(test):.4f})")
+model = KNeighborsClassifier(n_neighbors=best)
+model.fit(X_train, y_train)
+pred = model.predict(X_test)
+
+
+
+acc = accuracy_score(y_test, pred)
+print(f"\nOverall Accuracy: {acc * 100:.2f} %")
+print("\nClassification Report:")
+print(classification_report(y_test, pred, target_names=le.classes_))
+
+cm = confusion_matrix(y_test, pred)
+plt.figure(figsize=(7, 5))
+sns.heatmap(cm, annot=True, fmt="d", cmap="Blues",
+            xticklabels=le.classes_, yticklabels=le.classes_)
+plt.title("Confusion Matrix")
+
+plt.xlabel("Predicted")
+
+plt.ylabel("Actual")
+
+plt.tight_layout()
+
+plt.savefig("iris_confusion_matrix.png", dpi=120)
+
+plt.close()
+
+
+
+sample = pd.DataFrame([[5.1, 3.5, 1.4, 0.2]], columns=feature)
+predicted_species = le.inverse_transform(model.predict(sample))[0]
+probabilities = model.predict_proba(sample)[0]
+
+
+
+print(f"\nNew flower measurements: {sample.values.tolist()[0]}")
+
+print(f"Predicted species       : {predicted_species}")
+
+print("Prediction probabilities:")
+for species, prob in zip(le.classes_, probabilities):
+    print(f"  {species:<20}: {prob * 100:.1f} %")
+rf = RandomForestClassifier(n_estimators=100, random_state=42)
+rf.fit(X_train, y_train)
+rf_acc = accuracy_score(y_test, rf.predict(X_test))
+print(f"\nRandom Forest Accuracy: {rf_acc * 100:.2f} %")
+
+importance = pd.DataFrame({
+    "Feature": feature ,
+    "Importance": rf.feature_importances_
+})
+
+importance = importance.sort_values(by="Importance", ascending=False)
+print("\nWhich features matter most for prediction:")
+print(importance.to_string(index=False))
+
+plt.figure(figsize=(8, 4))
+sns.barplot(data=importance, x="Importance", y="Feature", palette="viridis")
+plt.title("Feature Importance (Random Forest)")
+plt.tight_layout()
+plt.savefig("iris_feature_importance.png", dpi=120)
+plt.close()
+
+print("\n\n")
+
+print("PROJECT SUMMARY :\n\n")
+
+
+
+print(f"Total flowers in dataset : {df.shape[0]}")
+
+print(f"Number of species        : {df['Species'].nunique()}")
+
+print(f"Best model               : KNN (k={best}) vs Random Forest")
+
+print(f"KNN Accuracy              : {acc * 100:.2f} %")
+
+print(f"Random Forest Accuracy   : {rf_acc * 100:.2f} %")
+
+
+
+
